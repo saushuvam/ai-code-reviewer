@@ -30,7 +30,7 @@ describe('ai.service', () => {
       mockGenerateContent.mockResolvedValue({ response: { text: () => 'ok' } })
       await generateContent('const x = 1')
       const config = mockGetGenerativeModel.mock.calls[0][0]
-      expect(config.model).toBe('gemini-2.5-flash')
+      expect(config.model).toBe('gemini-flash-latest')
       expect(config.systemInstruction).toEqual(expect.stringContaining('Senior Code Reviewer'))
     })
   })
