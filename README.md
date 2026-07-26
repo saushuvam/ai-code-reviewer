@@ -8,7 +8,7 @@ in Redis so repeat requests are instant.
 > Update the badge URL below to `saushuvam/ai-code-reviewer` once you push
 > this to GitHub, and it'll reflect the live CI status.
 
-![CI](https://github.com/your-username/your-repo/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/saushuvam/ai-code-reviewer/actions/workflows/ci.yml/badge.svg)
 
 ## Features
 
