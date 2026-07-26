@@ -5,7 +5,7 @@ snippet, a GitHub repo URL, or a pull request link, and get a streamed,
 structured review from Google's Gemini model — with review results cached
 in Redis so repeat requests are instant.
 
-> Update the badge URL below to `your-username/your-repo` once you push
+> Update the badge URL below to `saushuvam/ai-code-reviewer` once you push
 > this to GitHub, and it'll reflect the live CI status.
 
 ![CI](https://github.com/your-username/your-repo/actions/workflows/ci.yml/badge.svg)
