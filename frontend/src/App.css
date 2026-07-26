@@ -1,0 +1,178 @@
+* {
+  margin: 0%;
+  padding: 0%;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+}
+
+main {
+  height: 100%;
+  width: 100%;
+  padding: 1.5rem;
+  display: flex;
+  gap: 1rem;
+}
+
+main .left,
+main .right {
+  height: 100%;
+  flex-basis: 50%;
+  border-radius: 0.7rem;
+}
+
+main .left {
+  background-color: #000000;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.left .code,
+.code pre,
+.code pre code {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  border-radius: 0.7rem;
+  background-color: #0c0c0c;
+}
+
+.left .code {
+  flex: 1;
+  min-height: 0;
+}
+
+main .left .review {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  background-color: rgb(219, 219, 255);
+  color: #000000;
+  padding: 0.5rem 2rem;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 0.7rem;
+  transition: opacity 0.2s;
+}
+
+main .left .review.loading {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+
+main .right {
+  background-color: #343434;
+  padding: 1rem 2rem;
+  font-size: 1.5rem;
+  overflow: auto;
+}
+/* Markdown rendered output */
+.markdown-body { color: #e0e0e0; font-size: 1rem; line-height: 1.7; }
+.markdown-body h1, .markdown-body h2, .markdown-body h3 { color: #fff; margin: 1rem 0 0.5rem; }
+.markdown-body h1 { font-size: 1.5rem; }
+.markdown-body h2 { font-size: 1.25rem; }
+.markdown-body h3 { font-size: 1.1rem; }
+.markdown-body p { margin: 0.5rem 0; }
+.markdown-body ul, .markdown-body ol { padding-left: 1.5rem; margin: 0.5rem 0; }
+.markdown-body li { margin: 0.25rem 0; }
+.markdown-body code { background: #1e1e1e; color: #f8c555; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+.markdown-body pre { background: #1e1e1e; border-radius: 6px; padding: 1rem; overflow-x: auto; margin: 0.75rem 0; }
+.markdown-body pre code { background: none; color: inherit; padding: 0; font-size: 0.88em; }
+.markdown-body strong { color: #fff; }
+.markdown-body hr { border: none; border-top: 1px solid #555; margin: 1rem 0; }
+
+/* Fix invisible tokens — force base color, let Prism override per-token */
+.left .code textarea {
+  color: #e0e0e0 !important;
+  caret-color: #fff;
+}
+.left .code pre,
+.left .code pre span {
+  color: #e0e0e0;
+}
+.left .code .token.keyword     { color: #cc99cd !important; }
+.left .code .token.string      { color: #7ec699 !important; }
+.left .code .token.number      { color: #f08d49 !important; }
+.left .code .token.function    { color: #6fb3d2 !important; }
+.left .code .token.comment     { color: #888 !important; font-style: italic; }
+.left .code .token.operator    { color: #67cdcc !important; }
+.left .code .token.punctuation { color: #ccc !important; }
+.left .code .token.property    { color: #f8c555 !important; }
+.left .code .token.parameter   { color: #e0e0e0 !important; }
+.left .code .token.variable    { color: #e0e0e0 !important; }
+
+/* Mode toggle (Paste Code / GitHub Repo / PR) */
+.mode-toggle {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.mode-toggle button {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  background-color: #1a1a1a;
+  color: #aaa;
+  border: 1px solid #2a2a2a;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.mode-toggle button.active {
+  background-color: rgb(219, 219, 255);
+  color: #000;
+  border-color: transparent;
+}
+
+/* GitHub URL input view */
+.github-input {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+}
+
+.github-input input {
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid #2a2a2a;
+  background-color: #0c0c0c;
+  color: #e0e0e0;
+  font-size: 1rem;
+}
+
+.github-input input:focus {
+  outline: 1px solid rgb(219, 219, 255);
+}
+
+.github-input .hint {
+  color: #888;
+  font-size: 0.85rem;
+}
+
+/* Right panel message states */
+.error-text {
+  color: #ff6b6b;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+.placeholder-text {
+  color: #888;
+  font-size: 1rem;
+}
