@@ -41,28 +41,45 @@ module.exports.getReviewStream = async (req, res) => {
     return res.status(400).json({ error: 'code is required' })
   }
 
-  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-  res.setHeader('Cache-Control', 'no-cache')
-  res.setHeader('X-Accel-Buffering', 'no') // avoid proxy buffering (nginx etc.)
+  const abortController = new AbortController()
+  res.on('close', () => {
+    if (!res.writableEnded) {
+      abortController.abort()
+    }
+  })
 
   try {
     const cached = await getCachedReview(code)
     if (cached) {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('X-Accel-Buffering', 'no')
       res.write(cached)
       return res.end()
     }
 
     let fullText = ''
-    for await (const chunk of generateContentStream(code)) {
+    for await (const chunk of generateContentStream(code, { signal: abortController.signal })) {
+      if (!res.headersSent) {
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+        res.setHeader('Cache-Control', 'no-cache')
+        res.setHeader('X-Accel-Buffering', 'no')
+      }
       fullText += chunk
       res.write(chunk)
     }
-    await setCachedReview(code, fullText)
+
+    // Only cache if non-empty response was generated
+    if (fullText && fullText.trim().length > 0) {
+      await setCachedReview(code, fullText)
+    }
     res.end()
   } catch (err) {
     console.error('[getReviewStream]', err.message)
-    if (!res.headersSent) res.status(502)
-    res.write('\n\n[Error: failed to generate review. Please try again.]')
+    if (!res.headersSent) {
+      return res.status(502).json({ error: err.message || 'Failed to generate review. Please try again.' })
+    }
+    res.write(`\n\n[Error: ${err.message || 'failed to generate review. Please try again.'}]`)
     res.end()
   }
 }
@@ -80,9 +97,12 @@ module.exports.getRepoReview = async (req, res) => {
     return res.status(400).json({ error: 'A GitHub url is required' })
   }
 
-  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-  res.setHeader('Cache-Control', 'no-cache')
-  res.setHeader('X-Accel-Buffering', 'no')
+  const abortController = new AbortController()
+  res.on('close', () => {
+    if (!res.writableEnded) {
+      abortController.abort()
+    }
+  })
 
   try {
     const parsed = parseGithubUrl(url)
@@ -99,20 +119,34 @@ module.exports.getRepoReview = async (req, res) => {
     const cacheKey = `github:${url.trim()}`
     const cached = await getCachedReview(cacheKey)
     if (cached) {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('X-Accel-Buffering', 'no')
       res.write(cached)
       return res.end()
     }
 
     let fullText = ''
-    for await (const chunk of generateContentStream(promptInput)) {
+    for await (const chunk of generateContentStream(promptInput, { signal: abortController.signal })) {
+      if (!res.headersSent) {
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+        res.setHeader('Cache-Control', 'no-cache')
+        res.setHeader('X-Accel-Buffering', 'no')
+      }
       fullText += chunk
       res.write(chunk)
     }
-    await setCachedReview(cacheKey, fullText)
+
+    // Only cache if non-empty response was generated
+    if (fullText && fullText.trim().length > 0) {
+      await setCachedReview(cacheKey, fullText)
+    }
     res.end()
   } catch (err) {
     console.error('[getRepoReview]', err.message)
-    if (!res.headersSent) res.status(502)
+    if (!res.headersSent) {
+      return res.status(502).json({ error: err.message || 'Failed to generate review. Please try again.' })
+    }
     res.write(`\n\n[Error: ${err.message}]`)
     res.end()
   }

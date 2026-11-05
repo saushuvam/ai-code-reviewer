@@ -61,23 +61,41 @@ async function streamReview(endpoint, body, onChunk, signal) {
   })
 
   if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(text || `Request failed with status ${response.status}`)
+    let errorMsg = `Request failed with status ${response.status}`
+    try {
+      const data = await response.json()
+      if (data && data.error) errorMsg = data.error
+    } catch {
+      const text = await response.text().catch(() => '')
+      if (text) errorMsg = text
+    }
+    throw new Error(errorMsg)
   }
 
   if (!response.body || !response.body.getReader) {
     const text = await response.text()
+    if (text.startsWith('\n\n[Error:')) {
+      throw new Error(text.replace(/^\n\n\[Error:\s*/, '').replace(/\]$/, ''))
+    }
     onChunk(text)
     return
   }
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
+  let accumulated = ''
 
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
-    onChunk(decoder.decode(value, { stream: true }))
+    const chunk = decoder.decode(value, { stream: true })
+    accumulated += chunk
+    if (accumulated.includes('\n\n[Error:')) {
+      const parts = accumulated.split('\n\n[Error:')
+      const errText = parts[1].replace(/\]$/, '').trim()
+      throw new Error(errText || 'Failed to generate review. Please try again.')
+    }
+    onChunk(chunk)
   }
 }
 

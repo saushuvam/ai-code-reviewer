@@ -35,32 +35,129 @@ const SYSTEM_INSTRUCTION = `
         	•	Balance strictness with encouragement :- highlight strengths while pointing out weaknesses.
 `
 
-function getModel() {
+function isTransientError(err) {
+  if (!err) return false
+  const status = Number(err.status)
+  if (status === 503 || status === 429 || status === 500 || status === 504 || status === 408) {
+    return true
+  }
+  const msg = (err.message || '').toLowerCase()
+  return (
+    msg.includes('503') ||
+    msg.includes('429') ||
+    msg.includes('high demand') ||
+    msg.includes('resource exhausted') ||
+    msg.includes('quota') ||
+    msg.includes('temporarily unavailable') ||
+    msg.includes('econnreset') ||
+    msg.includes('etimedout') ||
+    msg.includes('network') ||
+    msg.includes('fetch failed')
+  )
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function getModel(modelName) {
   if (!process.env.GOOGLE_GEMINI_KEY) {
     throw new Error('GOOGLE_GEMINI_KEY is not set. Add it to backend/.env')
   }
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_KEY)
+  const resolvedModel = modelName || process.env.GEMINI_MODEL || 'gemini-3.5-flash'
   return genAI.getGenerativeModel({
-    model: 'gemini-flash-latest',
+    model: resolvedModel,
     systemInstruction: SYSTEM_INSTRUCTION,
   })
 }
 
-/** Non-streaming: returns the full review text at once. */
-async function generateContent(prompt) {
-  const model = getModel()
-  const result = await model.generateContent(prompt)
-  return result.response.text()
-}
+/** Non-streaming: returns the full review text at once with retries and fallback. */
+async function generateContent(prompt, options = {}) {
+  const primaryModel = options.model || process.env.GEMINI_MODEL || 'gemini-3.5-flash'
+  const fallbackModel = options.fallbackModel || process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.5-flash-lite'
+  const maxRetries = options.maxRetries !== undefined ? options.maxRetries : 3
 
-/** Streaming: yields text chunks as they arrive from the model. */
-async function* generateContentStream(prompt) {
-  const model = getModel()
-  const result = await model.generateContentStream(prompt)
-  for await (const chunk of result.stream) {
-    const text = chunk.text()
-    if (text) yield text
+  const modelsToTry = [primaryModel]
+  if (fallbackModel && fallbackModel !== primaryModel) {
+    modelsToTry.push(fallbackModel)
   }
+
+  let lastError = null
+
+  for (const modelName of modelsToTry) {
+    let delay = 1000
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const model = getModel(modelName)
+        const result = await model.generateContent(prompt)
+        return result.response.text()
+      } catch (err) {
+        lastError = err
+        const isTransient = isTransientError(err)
+        if (!isTransient || attempt === maxRetries) {
+          console.warn(`[ai.service] generateContent failed with model ${modelName} on attempt ${attempt + 1}: ${err.message}`)
+          break
+        }
+        const jitter = Math.floor(Math.random() * 500)
+        console.warn(`[ai.service] Transient error on attempt ${attempt + 1} (${modelName}): ${err.message}. Retrying in ${delay + jitter}ms...`)
+        await sleep(delay + jitter)
+        delay *= 2
+      }
+    }
+  }
+
+  throw lastError
 }
 
-module.exports = { generateContent, generateContentStream, SYSTEM_INSTRUCTION }
+/** Streaming: yields text chunks as they arrive from the model with retries and fallback. */
+async function* generateContentStream(prompt, options = {}) {
+  const primaryModel = options.model || process.env.GEMINI_MODEL || 'gemini-3.5-flash'
+  const fallbackModel = options.fallbackModel || process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.5-flash-lite'
+  const maxRetries = options.maxRetries !== undefined ? options.maxRetries : 3
+
+  const modelsToTry = [primaryModel]
+  if (fallbackModel && fallbackModel !== primaryModel) {
+    modelsToTry.push(fallbackModel)
+  }
+
+  let lastError = null
+
+  for (const modelName of modelsToTry) {
+    let delay = 1000
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (options.signal?.aborted) return
+
+      try {
+        const model = getModel(modelName)
+        const result = await model.generateContentStream(prompt)
+
+        let receivedAnyChunk = false
+        for await (const chunk of result.stream) {
+          if (options.signal?.aborted) return
+          const text = chunk.text()
+          if (text) {
+            receivedAnyChunk = true
+            yield text
+          }
+        }
+        return // Successfully completed stream
+      } catch (err) {
+        lastError = err
+        const isTransient = isTransientError(err)
+        if (!isTransient || attempt === maxRetries) {
+          console.warn(`[ai.service] generateContentStream failed with model ${modelName} on attempt ${attempt + 1}: ${err.message}`)
+          break
+        }
+        const jitter = Math.floor(Math.random() * 500)
+        console.warn(`[ai.service] Transient error on attempt ${attempt + 1} (${modelName}): ${err.message}. Retrying in ${delay + jitter}ms...`)
+        await sleep(delay + jitter)
+        delay *= 2
+      }
+    }
+  }
+
+  throw lastError
+}
+
+module.exports = { generateContent, generateContentStream, SYSTEM_INSTRUCTION, getModel, isTransientError }

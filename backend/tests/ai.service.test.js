@@ -30,8 +30,37 @@ describe('ai.service', () => {
       mockGenerateContent.mockResolvedValue({ response: { text: () => 'ok' } })
       await generateContent('const x = 1')
       const config = mockGetGenerativeModel.mock.calls[0][0]
-      expect(config.model).toBe('gemini-flash-latest')
+      expect(config.model).toBe(process.env.GEMINI_MODEL || 'gemini-3.5-flash')
       expect(config.systemInstruction).toEqual(expect.stringContaining('Senior Code Reviewer'))
+    })
+
+    it('retries on transient 503 error and succeeds', async () => {
+      const err503 = new Error('503 Service Unavailable')
+      err503.status = 503
+      mockGenerateContent
+        .mockRejectedValueOnce(err503)
+        .mockResolvedValueOnce({ response: { text: () => 'Review after retry' } })
+
+      const result = await generateContent('const x = 1', { maxRetries: 1 })
+      expect(result).toBe('Review after retry')
+      expect(mockGenerateContent).toHaveBeenCalledTimes(2)
+    })
+
+    it('falls back to secondary model when primary fails all retries', async () => {
+      const err503 = new Error('503 Service Unavailable')
+      err503.status = 503
+      mockGenerateContent
+        .mockRejectedValueOnce(err503) // primary attempt 1
+        .mockResolvedValueOnce({ response: { text: () => 'Fallback review' } }) // fallback attempt 1
+
+      const result = await generateContent('const x = 1', {
+        model: 'primary-model',
+        fallbackModel: 'fallback-model',
+        maxRetries: 0,
+      })
+      expect(result).toBe('Fallback review')
+      expect(mockGetGenerativeModel).toHaveBeenCalledWith(expect.objectContaining({ model: 'primary-model' }))
+      expect(mockGetGenerativeModel).toHaveBeenCalledWith(expect.objectContaining({ model: 'fallback-model' }))
     })
   })
 
