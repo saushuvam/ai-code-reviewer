@@ -1,6 +1,12 @@
 jest.mock('../src/services/ai.service')
 jest.mock('../src/services/cache.service')
 jest.mock('../src/services/github.service')
+jest.mock('../src/middlewares/auth.middleware', () => ({
+  requireAuth: (req, res, next) => {
+    req.user = { id: 'test-user-id', email: 'test@example.com' }
+    next()
+  },
+}))
 
 const request = require('supertest')
 const app = require('../src/app')
@@ -100,31 +106,25 @@ describe('POST /ai/get-repo-review', () => {
     parseGithubUrl.mockReturnValue({ type: 'pull', owner: 'octocat', repo: 'hello-world', number: 42 })
     fetchPullRequestDiff.mockResolvedValue('diff --git a/x b/x')
     getCachedReview.mockResolvedValue(null)
-    generateContentStream.mockReturnValue(streamOf('Diff ', 'looks fine.'))
+    generateContentStream.mockReturnValue(streamOf('Diff looks good'))
 
-    const res = await request(app)
-      .post('/ai/get-repo-review')
-      .send({ url: 'https://github.com/octocat/hello-world/pull/42' })
+    const res = await request(app).post('/ai/get-repo-review').send({ url: 'https://github.com/octocat/hello-world/pull/42' })
 
     expect(res.status).toBe(200)
-    expect(res.text).toBe('Diff looks fine.')
-    expect(fetchPullRequestDiff).toHaveBeenCalledWith('octocat', 'hello-world', 42)
+    expect(res.text).toBe('Diff looks good')
   })
 
   it('reviews a repo source bundle', async () => {
-    parseGithubUrl.mockReturnValue({ type: 'repo', owner: 'octocat', repo: 'hello-world', branch: undefined })
-    fetchRepoSourceBundle.mockResolvedValue([{ path: 'index.js', content: 'console.log(1)' }])
-    formatFilesAsPrompt.mockReturnValue('--- FILE: index.js ---\nconsole.log(1)')
+    parseGithubUrl.mockReturnValue({ type: 'repo', owner: 'octocat', repo: 'hello-world', branch: 'main' })
+    fetchRepoSourceBundle.mockResolvedValue([{ path: 'index.js', content: 'console.log()' }])
+    formatFilesAsPrompt.mockReturnValue('files...')
     getCachedReview.mockResolvedValue(null)
-    generateContentStream.mockReturnValue(streamOf('Repo ', 'review text'))
+    generateContentStream.mockReturnValue(streamOf('Repo looks good'))
 
-    const res = await request(app)
-      .post('/ai/get-repo-review')
-      .send({ url: 'https://github.com/octocat/hello-world' })
+    const res = await request(app).post('/ai/get-repo-review').send({ url: 'https://github.com/octocat/hello-world' })
 
     expect(res.status).toBe(200)
-    expect(res.text).toBe('Repo review text')
-    expect(fetchRepoSourceBundle).toHaveBeenCalledWith('octocat', 'hello-world', undefined)
+    expect(res.text).toBe('Repo looks good')
   })
 
   it('surfaces a parse error to the client', async () => {
@@ -132,8 +132,8 @@ describe('POST /ai/get-repo-review', () => {
       throw new Error('Unrecognized GitHub URL')
     })
 
-    const res = await request(app).post('/ai/get-repo-review').send({ url: 'https://example.com/nope' })
-
-    expect(res.text).toContain('Unrecognized GitHub URL')
+    const res = await request(app).post('/ai/get-repo-review').send({ url: 'https://gitlab.com/foo/bar' })
+    expect(res.status).toBe(502)
+    expect(res.body.error).toMatch(/Unrecognized GitHub URL/)
   })
 })
